@@ -1,0 +1,307 @@
+---
+name: SSL_LB_SharedCert
+version: "1.0"
+namespace: com.One2Any.stylebooks
+display-name: "SSL LoadBalancing StyleBook"
+description: "SSL Load Balanced Application configuration with L7 HTTP Monitor. Requires Pre-installed Wildcard SSL Certificate"
+schema-version: "1.0"
+author: "Rick Davis"
+
+# Notes:
+# ADM version: 12.1.49.23
+# ADC version: 12.1.49.23
+# 1.0   16 NOV 2018
+# - WebInsight is enabled by default but is optional
+# - Server ip and or names can specified
+# - Server names without IP addresses are created as domain based servers
+# - Advanced ssl component are: ssl3 DISABLED, tls11 DISABLED
+# - Client-ip http header insertion
+# - Intelligently changes monitor type from http and http-ecv when a receive string is specified
+# -	SSL type vserver
+# -	Binds a pre-installed wildcard certificate
+# -	Includes 80 to 443 redirect (requires ADC v11.1)
+# -	Defaults to Cookie Insert persistency
+# -	Defaults to Roundrobin load balancing algorithm
+# -	Service Group Servers can be port 80 or encrypted 443
+# -	HTTP health monitor with options for custom headers and send strings
+# -	Health monitor changes to secure/non-secure depending on server port selection  
+
+import-stylebooks:
+  -
+    namespace: netscaler.nitro.config
+    version: "11.1"
+    prefix: ns
+parameters:
+  -
+    key: true  
+    name: name
+    type: string
+    label: Application FQDN
+    description: |
+      Name of the application cnfiguration.
+      This is a mandatory argument.  Maximum Length: 127 
+    pattern: "^[A-z_][ A-z0-9_#.:@=-]+"
+    required: true
+  -
+    name: ip
+    type: ipaddress
+    label: Application Virtual IP (VIP)
+    description: The Application VIP that clients access
+    required: true
+  -
+    name: lb-alg
+    type: string
+    label: LoadBalancing Algorithm
+    description: Choose the loadbalancing algorithm (method) used for loadbalancing client requests between the application servers.
+    allowed-values:
+     - ROUNDROBIN
+     - LEASTCONNECTION
+    default: ROUNDROBIN
+  -
+    name: persistence
+    label: "Load Balanced App Persistence Type"
+    description: "Persistence type used for members of this pool"
+    type: string
+    allowed-values: 
+      - NONE
+      - SOURCEIP
+      - COOKIEINSERT
+      - SRCIPDESTIP
+      - DESTIP
+    default: COOKIEINSERT
+  - 
+    name: certificate
+    label: "SSL Certificate Settings"
+    description: "Choose a pre-installed SSL Certificate"
+    type: string
+    allowed-values:
+      - "wildcard.example.com"
+      - "wildcard.customer.com"
+    default: "wildcard.example.com"
+  -
+    name: svc-port
+    type: tcp-port
+    label: Application Server Port
+    description: The TCP port open on the Application Servers to receive requests.
+    allowed-values: 
+    - 80
+    - 443
+    default: 443
+  -
+    name: svc-servers
+    label: Application Servers
+    type: object[]
+    parameters:
+      -
+        name: ip
+        type: ipaddress
+        label: Application Server IP Address
+        description: Never omit the IP address unless the server use dynamic host protocol assigned addresses and the names are resolvable.
+        required: false
+        parameters:
+      -
+        name: name
+        type: string
+        label: Application Server DNS Name
+        description: |
+          The fully qualified name of the application server.
+        required: false
+  -
+    name: http-monitor
+    label: Web Server Monitor Setting
+    type: object
+    gui: 
+      collapse_pane: false 
+    parameters:
+      -
+        name: httprequest
+        label: "HTTP Request"
+        description: "HTTP Request sent to the web server"
+        type: string
+        default: "GET /"
+        required: true
+        max-length: 151
+      -
+        name: customheaders
+        label: "Custom HTTP Headers"
+        description: | 
+          Custom HTTP Headers to send in monitor probe requests.
+          Use \r\n at the end of the header and as a seperator
+          for multiple headers.
+          Requires ADM 12.1.50.0 or newer.
+        type: string
+        max-length: 163
+      -
+        name: recv
+        label: "Expected Response"
+        description: 
+          A string in the HTTP Response Body expected back from the web server.  
+          Will check for a server response code 200 when left blank.
+        type: string
+        max-length: 127
+  -
+    name: analytics
+    label: Web Insight Analytics
+    type: string
+    allowed-values:
+      - "YES"
+      - "NO"
+    default: "YES"
+substitutions:
+  secure:
+    443: "YES"
+    80: "NO"
+components:
+  -
+    name: lbvserver-comp
+    type: ns::lbvserver
+    properties:
+      name: $parameters.name + "-lb"
+      servicetype: SSL
+      ipv46: $parameters.ip
+      port: 443
+      lbmethod: $parameters.lb-alg
+      persistencetype: $parameters.persistence
+      redirectfromport: 80
+      httpsredirecturl: str("https://" + $parameters.name)
+    components:
+      -
+        name: lb-adv-comp
+        type: ns::sslvserver
+        properties:
+          vservername: $parent.properties.name
+          ssl3: DISABLED
+          tls1: DISABLED
+          tls11: DISABLED 
+      - 
+        name: cert-bindings-comp
+        type: ns::sslvserver_sslcertkey_binding 
+        description: "This component binds certkey entities to a vserver."
+        properties: 
+          vservername: $parent.properties.name
+          certkeyname: $parameters.certificate    
+      -
+        name: svcg-comp
+        type: ns::servicegroup
+        properties:
+          servicegroupname: $parameters.name + "-svcgrp"
+          servicetype: str(SSL)
+          cip: "ENABLED"
+          cipheader: "client-ip"
+        components:        
+          -
+            name: lbvserver-svg-binding-comp
+            type: ns::lbvserver_servicegroup_binding
+            properties:
+              name: $parent.parent.properties.name
+              servicegroupname: $parent.properties.servicegroupname
+          -
+            name: members-svcg-server-domain-comp
+            type: ns::server
+            repeat: $parameters.svc-servers
+            repeat-item: servers
+            repeat-condition: $servers.name and not $servers.ip  
+            properties:
+              name: $servers.name
+              domain: $servers.name
+            components:
+              -
+                name: members-svcg-bind-dnsserver-comp
+                type: ns::servicegroup_servicegroupmember_binding
+                properties:
+                  servername: $parent.properties.name
+                  port: $parameters.svc-port
+                  servicegroupname: $parent.parent.properties.servicegroupname
+          -
+            name: members-svcg-server-comp
+            type: ns::server
+            repeat: $parameters.svc-servers
+            repeat-item: servers
+            repeat-condition: $servers.name and $servers.ip
+            properties:
+              name: $servers.name
+              ipaddress: $servers.ip
+            components:
+              -
+                name: members-svcg-bind-namedserver-comp
+                type: ns::servicegroup_servicegroupmember_binding
+                properties:
+                  servername: $parent.properties.name
+                  port: $parameters.svc-port
+                  servicegroupname: $parent.parent.properties.servicegroupname
+          -
+            name: members-svcg-serverip-comp
+            type: ns::server
+            repeat: $parameters.svc-servers
+            repeat-item: servers
+            repeat-condition: not $servers.name and $servers.ip
+            properties:
+              name: str($servers.ip)
+              ipaddress: $servers.ip
+            components:
+              -
+                name: members-svcg-bind-ipserver-comp
+                type: ns::servicegroup_servicegroupmember_binding
+                properties:
+                  servername: $parent.properties.name
+                  port: $parameters.svc-port
+                  servicegroupname: $parent.parent.properties.servicegroupname
+  -
+    name: monitors-comp
+    type: object
+    components:
+      -
+        name: monitor-ecv-comp
+        type: ns::lbmonitor
+        condition: $parameters.http-monitor.recv
+        properties:
+          monitorname: $parameters.name + "-ecv-mon"
+          type: str(HTTP-ECV)
+          secure: $substitutions.secure[$parameters.svc-port]
+          customheaders?: $parameters.http-monitor.customheaders   
+          send?: $parameters.http-monitor.httprequest
+          recv?: $parameters.http-monitor.recv
+        components:
+          -
+           name: monitor-ecv-bind-comp
+           type: ns::servicegroup_lbmonitor_binding
+           properties:
+             servicegroupname: $parameters.name + "-svcgrp"
+             monitor_name: $parameters.name + "-ecv-mon"         
+      -
+        name: monitor-http-comp
+        type: ns::lbmonitor
+        condition: not $parameters.http-monitor.recv
+        properties:
+          monitorname: $parameters.name + "-http-mon"
+          type: str(HTTP)
+          secure: $substitutions.secure[$parameters.svc-port]
+          httprequest?: $parameters.http-monitor.httprequest
+          customheaders?: $parameters.http-monitor.customheaders 
+        components:
+          -
+           name: monitor-http-bind-comp
+           type: ns::servicegroup_lbmonitor_binding
+           properties:
+             servicegroupname: $parameters.name + "-svcgrp"
+             monitor_name: $parameters.name + "-http-mon"               
+operations:
+  analytics:
+    -
+      name: lbvserver-ops
+      condition: $parameters.analytics == "YES"
+      properties:
+        target: $components.lbvserver-comp
+        filter: "true"
+        insights:
+          -
+            type: webinsight    
+outputs:
+  -
+    name: lbvserver-comp
+    value: $components.lbvserver-comp
+    description: The component that builds the Nitro lbvserver configuration
+  -
+    name: monitors-comp
+    value: $components.monitors-comp
+    description: The component that builds and updates the health monitors
