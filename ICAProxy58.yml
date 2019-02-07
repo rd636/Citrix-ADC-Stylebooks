@@ -1,0 +1,200 @@
+---
+name: ICA-Proxy
+description: "ICA-Only Gateway, LB StoreFront w/ auth at StoreFront"
+display-name: "ICA Proxy w/ LB StoreFront, SF Auth"
+author: Rick Davis, Oct 2018
+namespace: com.One2Any.stylebooks
+schema-version: "1.0"
+version: "0.58"
+import-stylebooks:
+  -
+    namespace: netscaler.nitro.config
+    prefix: ns
+    version: "12.0"
+  -
+    namespace: com.citrix.adc.commontypes
+    prefix: cmtypes
+    version: "1.0"
+  -  
+    namespace: com.citrix.adc.stylebooks
+    prefix: stlb
+    version: "1.0"
+parameters:
+  -
+    key: true
+    name: name
+    label: Customer Name or FQDN
+    description: |
+      Name of the gateway virtual server.
+      This is a mandatory argument.  Maximum Length: 127    
+    max-length: 127
+    pattern: "^[A-z_][ A-z0-9_#.:@=-]+"
+    type: string
+    required: true
+  -
+    name: certificates
+    label: "SSL Certificate Settings"
+    description: "Certificates for this virtual server if this load Balanced application is exposed using SSL"
+    type: "cmtypes::certificate[]"
+  -
+    name: gw-services
+    label: ICA/HDX Gateway resources
+    type: object
+    parameters:
+      - 
+        name: gw-ipaddr
+        label: Gateway VIP
+        description: Application Virtual IP (VIP) address that Citrix Receiver and Citrix Workspace clients access.
+        type: ipaddress
+        required: true
+      -
+        name: add-sta-server
+        label: "Add a Secure Ticket Authority (STA) server resource"
+        type: object[]
+        parameters:
+          - 
+            name: staserver
+            label: URL of the Secure Ticket Authority (STA) server(s)
+            description: |
+              Web address of the Secure Ticket Authority (STA) server, in the
+              following format: 'http(s)://FQDN/URLPATH' Maximum Length: 255    
+            type: string
+            max-length: 255
+            pattern: "^https?://(?!.*://)\\S+"
+          -
+            name: staaddresstype
+            label: Type of STA server address (ipv4/v6)
+            description: Possible values IPV4, IPV6
+            type: string
+            allowed-values:
+              - ipv4
+              - ipv6
+            default: ipv4
+  -
+    name: lb-services
+    label: "StoreFront resources"
+    type: object
+    parameters:
+      -
+        name: ip
+        type: ipaddress
+        label: StoreFront VIP 
+        description: The Application Virtual IP (VIP) that clients use to connect.
+        required: true
+      -
+        name: alg
+        type: string
+        label: LoadBalancing Algorithm
+        description: Choose the loadbalancing algorithm (method) used for loadbalancing client requests between the application servers.
+        allowed-values:
+        - ROUNDROBIN
+        - LEASTCONNECTION
+        default: ROUNDROBIN
+      -
+        name: svc-servers
+        type: ipaddress[]
+        label: StoreFront Server IPs
+        description: The IP addresses of all the servers of this application
+        required: true
+      -
+        name: svc-port
+        type: tcp-port
+        label: Storefront Server Port
+        description: The TCP port open on the Application Servers to receive requests.
+        default: 80
+        required: true
+components:
+  -
+    name: icaproxy-comp
+    type: ns::vpnvserver
+    properties:
+      name: $parameters.name + "-gw"
+      servicetype: SSL
+      ipv46: $parameters.gw-services.gw-ipaddr
+      port: 443
+      authentication: str(OFF)
+      icaonly: str(ON)
+      downstateflush: DISABLED 
+      listenpolicy: NONE 
+      tcpprofilename: nstcp_default_XA_XD_profile  
+    components:
+      -
+        name: vserver-certs-bindings
+        type: stlb::vserver-certs-binds
+        condition: "$parameters.certificates and ($parent.properties.servicetype == \"SSL\")"
+        properties: 
+          certificates: $parameters.certificates
+          vserver-name: $parent.properties.name      
+  -
+    name: staservers-comp
+    type: ns::vpnvserver_staserver_binding
+    repeat: $parameters.gw-services.add-sta-server
+    repeat-item: sta 
+    properties:
+       name: $components.icaproxy-comp.properties.name
+       staserver: $sta.staserver
+       staaddresstype: $sta.staaddresstype 
+  -
+    name: lbvserver-comp
+    type: ns::lbvserver
+    properties:
+      name: $parameters.name + "-lb"
+      servicetype: SSL
+      ipv46: $parameters.lb-services.ip
+      port: 443
+      lbmethod: $parameters.lb-services.alg
+    components:
+      -
+        name: svcg-comp
+        type: ns::servicegroup
+        properties:
+          servicegroupname: $parameters.name + "-svcgrp"
+          servicetype: str(HTTP)
+        components:
+          -
+            name: lbvserver-svg-binding-comp
+            type: ns::lbvserver_servicegroup_binding
+            properties:
+              name: $parent.parent.properties.name
+              servicegroupname: $parent.properties.servicegroupname
+          -
+            name: members-svcg-comp
+            type: ns::servicegroup_servicegroupmember_binding
+            repeat: $parameters.lb-services.svc-servers
+            repeat-item: srv
+            properties:
+              ip: $srv
+              port: $parameters.lb-services.svc-port
+              servicegroupname: $parent.properties.servicegroupname
+      -
+        name: vserver-certs-bindings
+        type: stlb::vserver-certs-binds
+        condition: "$parameters.certificates and ($parent.properties.servicetype == \"SSL\")"
+        properties: 
+          certificates: $parameters.certificates
+          vserver-name: $parent.properties.name
+outputs:
+  -
+    name: icaproxy
+    value: $components.icaproxy-comp
+    description: |
+        add vpn vserver <name> SSL <IP> 443 
+        -authentication OFF 
+        -icaOnly ON 
+        -downStateFlush DISABLED 
+        -Listenpolicy NONE 
+        -tcpProfileName nstcp_default_XA_XD_profile
+  -
+    name: staservers
+    value: $components.staservers-comp
+    description: |
+        bind vpn vserver <name> -staServer <URL> 
+        http://Pfizctxdc02.pfiz_ct.cernerasp.com:8010/Scripts/CtxSTA.dll
+  -
+    name: lbvserver-comp
+    value: $components.lbvserver-comp
+    description: The component that builds the Nitro lbvserver configuration object
+  -
+    name: servicegroup-comp
+    value: $components.lbvserver-comp.components.svcg-comp
+    description: The component that builds the Nitro servicegroup configuration object
