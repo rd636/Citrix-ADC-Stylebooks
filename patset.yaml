@@ -1,0 +1,107 @@
+
+---
+name: pattsets
+version: "1.0"
+namespace: com.One2Any.stylebooks
+display-name: "Security Whitelist/Blacklist"
+description: "Maintain User Agents and IP Addresses for whitelist/blacklist operations"
+schema-version: "1.0"
+author: "Rick Davis"
+
+# Notes:
+# 09 APR 2020
+
+import-stylebooks:
+  -
+    namespace: netscaler.nitro.config
+    version: "11.1"
+    prefix: ns
+parameters:
+  -
+    name: patset
+    key: true
+    type: string
+    label: Label
+    description: |
+      Name of the application cnfiguration.
+      This is a mandatory argument.  Maximum Length: 127 
+    pattern: "^[A-z_][ A-z0-9_#.:@=-]+"
+    required: true
+  -
+    name: ua
+    label: User Agents
+    type: object[]
+    parameters:
+      -
+        name: UserAgent
+        type: string
+        label: User Agent String
+        description: Supply the user agent string of the sending system
+        required: true
+      -
+        name: comment
+        type: string
+        label: Ticket Number
+        description: |
+          Supply a ticket, change control number, or description.
+        required: false
+  -
+    name: ip
+    label: IP Addresses
+    type: object[]
+    parameters:
+      -
+        name: ipaddr
+        type: ipaddress
+        label: Source IP Address
+        description: Supply the user agent string of the sending system
+        required: true
+      -
+        name: comment
+        type: string
+        label: Ticket Number
+        description: |
+          Supply a ticket, change control number, or description.
+        required: false 
+components:
+  -
+    name: policypatset-UserAgent-comp
+    type: ns::policypatset
+    properties:
+      name: $parameters.patset + "_UserAgent"
+      indextype?: Auto-generated
+      comment?: 
+    #Ref: https://developer-docs.citrix.com/projects/netscaler-nitro-api/en/12.0/configuration/policy/policypatset/policypatset/
+    components:
+      -
+        name: policypatset_pattern_binding-comp
+        type: ns::policypatset_pattern_binding
+        repeat: $parameters.ua
+        repeat-item: ua
+        properties:
+          String: $ua.UserAgent 
+          name: $parameters.patset + "_UserAgent"
+          charset?: ASCII
+          #comment?: $ua.comment
+        #Ref: https://developer-docs.citrix.com/projects/netscaler-nitro-api/en/12.0/configuration/policy/policypatset_pattern_binding/policypatset_pattern_binding/
+  -
+    name: policypatset-ip-comp
+    type: ns::policypatset
+    properties:
+      name: $parameters.patset + "_IPAddr"
+      indextype?: Auto-generated
+      comment?: 
+    #Ref: https://developer-docs.citrix.com/projects/netscaler-nitro-api/en/12.0/configuration/policy/policypatset/policypatset/
+    components:
+      -
+        name: policypatset_pattern_binding-comp
+        type: ns::policypatset_pattern_binding
+        repeat: $parameters.ip
+        repeat-item: ip
+        properties:
+          String: str( $ip.ipaddr )
+          name: $parameters.patset + "_IPAddr"
+          charset?: ASCII
+          #comment?: $ip.comment
+        #Ref: https://developer-docs.citrix.com/projects/netscaler-nitro-api/en/12.0/configuration/policy/policypatset_pattern_binding/policypatset_pattern_binding/
+        
