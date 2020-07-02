@@ -123,6 +123,7 @@ components:
           labelname?: 
           name: $parameters.cfg.vserver-name
           gotopriorityexpression?: 
+          invoke?: bool(true)
           labeltype?: reqvserver
         #Ref: https://developer-docs.citrix.com/projects/netscaler-nitro-api/en/12.0/configuration/load-balancing/lbvserver_rewritepolicy_binding/lbvserver_rewritepolicy_binding/
 outputs:
