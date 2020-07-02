@@ -1,6 +1,6 @@
 ---
 name: IPAM_Application
-version: "2.0"
+version: "2.1"
 namespace: com.One2Any.stylebooks
 display-name: "IPAM StyleBook"
 description: "non-addressable app config for Action based Content Switching with a prefix. Creates the vserver configuration and L7 HTTP Monitor. Requires Pre-configured CS"
