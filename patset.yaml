@@ -1,6 +1,6 @@
 
 ---
-name: pattsets
+name: pattset
 version: "1.0"
 namespace: com.One2Any.stylebooks
 display-name: "Security Whitelist/Blacklist"
