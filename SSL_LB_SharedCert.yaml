@@ -4,7 +4,7 @@ version: "1.0"
 namespace: com.One2Any.stylebooks
 display-name: "SSL LoadBalancing StyleBook"
 description: "SSL Load Balanced Application configuration with L7 HTTP Monitor. Requires Pre-installed Wildcard SSL Certificate"
-schema-version: "1.0"
+schema-version: "1.1"
 author: "Rick Davis"
 
 # Notes:
