@@ -1,5 +1,5 @@
 ---
-name:  ICAProxy.yaml
+name:  ICAProxy
 description: "ICA-Only Gateway, LB StoreFront w/ auth at StoreFront"
 display-name: "ICA Proxy w/ LB StoreFront, SF Auth"
 author: Rick Davis, Oct 2018
