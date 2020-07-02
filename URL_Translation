@@ -1,0 +1,134 @@
+---
+name: URL_Translation
+version: "1.4"
+namespace: com.One2Any.stylebooks
+display-name: "URL Transform Module management"
+description: "Centralized and simplified management of URL Translation rewriting FQDN"
+schema-version: "1.0"
+author: "Rick.Davis@citrix.com"
+
+# Notes:
+# ADM version: 13.0.47.22
+# ADC version: 13.0.47.24
+# 1.4   02 JUL 2020 Made sample data generic
+# 1.1   08 MAR 2020 optimized foreach components
+# 1.0   06 MAR 2020
+ 
+import-stylebooks:
+  -
+    namespace: netscaler.nitro.config
+    version: "12.1"
+    prefix: ns
+substitutions:
+  target-fqdn: "findaprovider-v2.ckp-dmz.ccustomerentene.com"     
+parameters:  
+  -
+    key: true
+    name: configpack-name
+    label: "Configpack Name"
+    description: "This is what the configuration pack will be labeled in ADM"  
+    type: string    
+    default: "Provider Search"
+    required: true  
+  -
+    name: cfg
+    label: "Binding Location & Priority"
+    type: object
+    required: true
+    gui:
+      collapse_pane: Yes
+      columns: 2
+      updatable: false
+    parameters:
+      -
+        name: vserver-name
+        label: "Virtual Server Name"
+        description: "This non-updatable value is the virtual server name to which this configuration is bound"  
+        type: string
+        default: "Find-a-Provider"
+        required: true
+        updatable: false
+      -
+        name: target-fqdn
+        label: "Tranlate incomming requests into this name"
+        type: string
+        default: "findaprovider-v2.ckp-dmz.company.com"
+        required: true
+        updatable: false
+      -
+        name: priority-start
+        label: "Starting Priority value"
+        description: "This is the priority of the first policy bound to the virtual server.  Subsequent bindings will be incremented by 10."  
+        type: number
+        min-value: 1000
+        max-value: 1000000
+        default: 8000
+        required: true
+        updatable: false
+  -
+    name: list-of-domains
+    label: Transform Domains
+    description: "List of client facing domains"
+    type: object[]
+    parameters:
+      - 
+        name: client-domain
+        label: Client Domain Name
+        type: string
+        pattern: "^[A-z_][ A-z0-9_#.:@=-]+"
+        required: true
+components:
+  -
+    name: transformprofile-comp
+    type: ns::transformprofile
+    repeat: $parameters.list-of-domains
+    repeat-item: each-item
+    properties:
+      name: $parameters.cfg.vserver-name + "_" + $each-item.client-domain + "_profile"
+      comment: str("ADM Stylebook managed. Do not change")
+    description: create each tranform profile and associated actions, policy, vserver binding, and DNS records.
+    components:
+      -
+        name: transformpaction-comp
+        type: ns::transformaction
+        properties:
+          profilename: $parameters.cfg.vserver-name + "_" + $each-item.client-domain + "_profile"
+          name: $each-item.client-domain
+          priority: 100
+          state: ENABLED
+          requrlfrom: str( "https://%{$each-item.client-domain}%/(.*)"   )
+          requrlinto: str( "https://%{$parameters.cfg.target-fqdn}%/$1"   )
+          resUrlFrom: str( "https://%{$parameters.cfg.target-fqdn}%/(.*)" )
+          resUrlInto: str( "https://%{$each-item.client-domain}%/$1"     ) 
+          cookiedomainfrom?: 
+          cookiedomaininto?: 
+          comment?: str("ADM Stylebook managed. Do not change")
+      -
+        name: transformpolicy-comp
+        type: ns::transformpolicy
+        properties:
+          name: $parameters.cfg.vserver-name + "_" + $each-item.client-domain + "_policy"
+          rule: str("HTTP.REQ.HOSTNAME.EQ(%{quotewrap($each-item.client-domain)}%)")
+          profilename: $parameters.cfg.vserver-name + "_" + $each-item.client-domain + "_profile" 
+          comment?: str("ADM Stylebook managed")
+          logaction?: 
+          newname?: 
+        #Ref: https://developer-docs.citrix.com/projects/netscaler-nitro-api/en/12.0/configuration/transform/transformpolicy/transformpolicy/ 
+      -
+        name: lbvserver_rewritepolicy_binding-comp
+        type: ns::lbvserver_rewritepolicy_binding
+        properties:
+          priority?: $parameters.cfg.priority-start + 10 * $repeat-index 
+          bindpoint?: REQUEST
+          policyname?: $parameters.cfg.vserver-name + "_" + $each-item.client-domain + "_policy"
+          labelname?: 
+          name: $parameters.cfg.vserver-name
+          gotopriorityexpression?: 
+          invoke?: bool()
+          labeltype?: reqvserver
+        #Ref: https://developer-docs.citrix.com/projects/netscaler-nitro-api/en/12.0/configuration/load-balancing/lbvserver_rewritepolicy_binding/lbvserver_rewritepolicy_binding/
+outputs:
+- 
+  name: transformprofile-comp
+  value: $components.transformprofile-comp
+  description: The component that builds the URL-T configuration.
