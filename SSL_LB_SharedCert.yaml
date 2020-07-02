@@ -78,6 +78,7 @@ parameters:
       - "wildcard.example.com"
       - "wildcard.customer.com"
     default: "wildcard.example.com"
+    required: true
   -
     name: svc-port
     type: tcp-port
