@@ -1,10 +1,10 @@
 ---
 name: SSL_LB_SharedCert
-version: "1.0"
+version: "1.1"
 namespace: com.One2Any.stylebooks
 display-name: "SSL LoadBalancing StyleBook"
 description: "SSL Load Balanced Application configuration with L7 HTTP Monitor. Requires Pre-installed Wildcard SSL Certificate"
-schema-version: "1.1"
+schema-version: "1.0"
 author: "Rick Davis"
 
 # Notes:
