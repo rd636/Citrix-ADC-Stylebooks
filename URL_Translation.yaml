@@ -111,7 +111,6 @@ components:
           rule: str("HTTP.REQ.HOSTNAME.EQ(%{quotewrap($each-item.client-domain)}%)")
           profilename: $parameters.cfg.vserver-name + "_" + $each-item.client-domain + "_profile" 
           comment?: str("ADM Stylebook managed")
-          newname?: 
         #Ref: https://developer-docs.citrix.com/projects/netscaler-nitro-api/en/12.0/configuration/transform/transformpolicy/transformpolicy/ 
       -
         name: lbvserver_rewritepolicy_binding-comp
@@ -121,7 +120,6 @@ components:
           bindpoint?: REQUEST
           policyname?: $parameters.cfg.vserver-name + "_" + $each-item.client-domain + "_policy" 
           name: $parameters.cfg.vserver-name
-          labeltype?: reqvserver
         #Ref: https://developer-docs.citrix.com/projects/netscaler-nitro-api/en/12.0/configuration/load-balancing/lbvserver_rewritepolicy_binding/lbvserver_rewritepolicy_binding/
 outputs:
 - 
