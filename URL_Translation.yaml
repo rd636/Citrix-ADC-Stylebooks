@@ -75,7 +75,7 @@ parameters:
         name: client-domain
         label: Client Domain Name
         type: string
-        pattern: "^[A-z_][ A-z0-9_#.:@=-]+"
+        pattern: "^[A-z_][A-z0-9_#.:@=-]+"
         required: true
 components:
   -
