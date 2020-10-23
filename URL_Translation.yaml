@@ -20,7 +20,7 @@ import-stylebooks:
     version: "12.1"
     prefix: ns
 substitutions:
-  target-fqdn: "findaprovider-v2.ckp-dmz.ccustomerentene.com"     
+  target-fqdn: "findaprovider-v2.ckp-dmz.customer.com"     
 parameters:  
   -
     key: true
