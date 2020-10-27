@@ -1,6 +1,6 @@
 ---
 name: URL_Translation
-version: "1.4"
+version: "2.0"
 namespace: com.One2Any.stylebooks
 display-name: "URL Transform Module management"
 description: "Centralized and simplified management of URL Translation rewriting FQDN"
@@ -10,6 +10,7 @@ author: "Rick.Davis@citrix.com"
 # Notes:
 # ADM version: 13.0.47.22
 # ADC version: 13.0.47.24
+# 2.0   26 OCT 2020 target-fqdn can be changed
 # 1.4   02 JUL 2020 Made sample data generic
 # 1.1   08 MAR 2020 optimized foreach components
 # 1.0   06 MAR 2020
@@ -18,9 +19,7 @@ import-stylebooks:
   -
     namespace: netscaler.nitro.config
     version: "12.1"
-    prefix: ns
-substitutions:
-  target-fqdn: "findaprovider-v2.ckp-dmz.customer.com"     
+    prefix: ns   
 parameters:  
   -
     key: true
@@ -54,7 +53,7 @@ parameters:
         type: string
         default: "findaprovider-v2.ckp-dmz.company.com"
         required: true
-        updatable: false
+        updatable: true
       -
         name: priority-start
         label: "Starting Priority value"
@@ -64,7 +63,7 @@ parameters:
         max-value: 1000000
         default: 8000
         required: true
-        updatable: false
+        updatable: true
   -
     name: list-of-domains
     label: Transform Domains
@@ -75,7 +74,7 @@ parameters:
         name: client-domain
         label: Client Domain Name
         type: string
-        pattern: "^[A-z_][A-z0-9_#.:@=-]+"
+        pattern: "^[A-z_][ A-z0-9_#.:@=-]+"
         required: true
 components:
   -
@@ -97,7 +96,8 @@ components:
           priority: 100
           state: ENABLED
           requrlfrom: str( "https://%{$each-item.client-domain}%/(.*)"   )
-          requrlinto: str( "https://%{$parameters.cfg.target-fqdn}%/$1"   )
+          requrlinto: str( "https://%{$parameters.cfg.target-fqdn}%/$1"   ) 
+          # requrlinto: str(~{https://}~) + $parameters.cfg.target-fqdn + str(~{/$1}~) # verbatim string operator 
           resUrlFrom: str( "https://%{$parameters.cfg.target-fqdn}%/(.*)" )
           resUrlInto: str( "https://%{$each-item.client-domain}%/$1"     ) 
           cookiedomainfrom?: 
@@ -118,7 +118,7 @@ components:
         properties:
           priority?: $parameters.cfg.priority-start + 10 * $repeat-index 
           bindpoint?: REQUEST
-          policyname?: $parameters.cfg.vserver-name + "_" + $each-item.client-domain + "_policy" 
+          policyname?: $parameters.cfg.vserver-name + "_" + $each-item.client-domain + "_policy"
           name: $parameters.cfg.vserver-name
         #Ref: https://developer-docs.citrix.com/projects/netscaler-nitro-api/en/12.0/configuration/load-balancing/lbvserver_rewritepolicy_binding/lbvserver_rewritepolicy_binding/
 outputs:
