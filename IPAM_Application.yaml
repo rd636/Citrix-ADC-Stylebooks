@@ -136,7 +136,7 @@ parameters:
         type: string
         #default: "ns_default_ssl_profile_secure_frontend"
         allowed-values: 
-          - ns_default_ssl_profile_secure_frontend
+          - ns_default_ssl_profile_secure_backend
         required: false
       -
         name: http-profile-name
