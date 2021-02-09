@@ -2,7 +2,7 @@
 name: pattern_set_list
 version: "1.0"
 namespace: com.One2Any.stylebooks
-display-name: "Pattern Set"
+display-name: "Pattern Set List"
 description: "Maintain lists of string patterns for AppExpert operations"
 schema-version: "1.0"
 author: "R. Davis"
