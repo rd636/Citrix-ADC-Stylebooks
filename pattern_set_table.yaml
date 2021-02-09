@@ -34,6 +34,7 @@ parameters:
       Any comments to preserve information about this patset.
       This is a mandatory argument.  Maximum Length: 127 
     max-length: 195
+    default: "MANAGED BY ADM. DO NOT MAKE CHANGES DIRECTLY ON ADC."
   -
     name: ps
     label: PatSet List
@@ -61,7 +62,7 @@ components:
     properties:
       name: $parameters.patset 
       indextype?: Auto-generated
-      comment?: $parameters.ps_comment + " _MANAGED BY ADM.  DO NOT MAKE CHANGES DIRECTLY ON ADC"
+      comment?: $parameters.ps_comment 
     #Ref: https://developer-docs.citrix.com/projects/netscaler-nitro-api/en/12.0/configuration/policy/policypatset/policypatset/
     components:
       -
