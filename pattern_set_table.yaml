@@ -5,7 +5,7 @@ namespace: com.One2Any.stylebooks
 display-name: "Pattern Set Table"
 description: "Maintain table of string patterns for AppExpert operations"
 schema-version: "1.0"
-author: "Rick Davis"
+author: "R. Davis"
 
 # Notes:
 # 09 FEB 2021 - Initial Build
