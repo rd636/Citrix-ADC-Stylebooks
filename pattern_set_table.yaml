@@ -1,0 +1,83 @@
+---
+name: pattern_set_table
+version: "1.0"
+namespace: com.One2Any.stylebooks
+display-name: "Pattern Set"
+description: "Maintain table of string patterns for AppExpert operations"
+schema-version: "1.0"
+author: "Rick Davis"
+
+# Notes:
+# 09 FEB 2021 - Initial Build
+
+import-stylebooks:
+  -
+    namespace: netscaler.nitro.config
+    version: "12.1"
+    prefix: ns
+parameters:
+  -
+    name: patset
+    key: true
+    type: string
+    label: name
+    description: |
+      Name of the pattern set to which to bind the string.
+      This is a mandatory argument.  Maximum Length: 127 
+    pattern: "^[A-z_][ A-z0-9_#.:@=-]+"
+    required: true
+  - 
+    name: ps_comment
+    type: string
+    label: Comment
+    description: |
+      Any comments to preserve information about this patset.
+      This is a mandatory argument.  Maximum Length: 127 
+    max-length: 195
+  -
+    name: ps
+    label: PatSet List
+    type: object[]
+    parameters:
+      -
+        name: Pattern
+        type: string
+        label: String Pattern
+        description: String of characters that constitutes a pattern.
+        min-length: 3
+        max-length: 255
+        required: true
+      -
+        name: comment
+        type: string
+        label: Comment or Ticket Number
+        description: |
+          Supply a ticket, change control number, or description.
+        required: false
+components:
+  -
+    name: policypatset-Pattern-comp
+    type: ns::policypatset
+    properties:
+      name: $parameters.patset 
+      indextype?: Auto-generated
+      comment?: $parameters.ps_comment + " _MANAGED BY ADM.  DO NOT MAKE CHANGES DIRECTLY ON ADC"
+    #Ref: https://developer-docs.citrix.com/projects/netscaler-nitro-api/en/12.0/configuration/policy/policypatset/policypatset/
+    components:
+      -
+        name: policypatset_pattern_binding-comp
+        type: ns::policypatset_pattern_binding
+        repeat: $parameters.ps
+        repeat-item: ps
+        properties:
+          String: $ps.Pattern 
+          name: $parameters.patset
+          charset?: ASCII
+          # comment?: $ps.comment
+        #Ref: https://developer-docs.citrix.com/projects/netscaler-nitro-api/en/12.0/configuration/policy/policypatset_pattern_binding/policypatset_pattern_binding/
+outputs:
+- 
+  name: policypatset-Pattern-comp
+  value: $components.policypatset-Pattern-comp
+  description: The component that builds the configuration.
+        

@@ -1,0 +1,69 @@
+---
+name: pattern_set_list
+version: "1.0"
+namespace: com.One2Any.stylebooks
+display-name: "Pattern Set"
+description: "Maintain lists of string patterns for AppExpert operations"
+schema-version: "1.0"
+author: "R. Davis"
+
+# Notes:
+# 09 FEB 2021 - Initial Build
+
+import-stylebooks:
+  -
+    namespace: netscaler.nitro.config
+    version: "12.1"
+    prefix: ns
+parameters:
+  -
+    name: ps_name
+    key: true
+    type: string
+    label: name
+    description: |
+      Name of the pattern set to which to bind the string.
+      This is a mandatory argument.  Maximum Length: 127 
+    pattern: "^[A-z_][ A-z0-9_#.:@=-]+"
+    required: true
+  - 
+    name: ps_comment
+    type: string
+    label: Comment
+    description: |
+      Any comments to preserve information about this patset.
+      This is a mandatory argument.  Maximum Length: 127 
+    max-length: 195
+    default: "MANAGED BY ADM. DO NOT MAKE CHANGES DIRECTLY ON ADC."
+  -
+    name: pattern
+    type: string[]
+    label: String Pattern
+    description: String of characters that constitutes a pattern.
+    min-length: 3
+    max-length: 255
+components:
+  -
+    name: policypatset-Pattern-comp
+    type: ns::policypatset
+    properties:
+      name: $parameters.ps_name
+      indextype?: Auto-generated
+      comment?: $parameters.ps_comment 
+    #Ref: https://developer-docs.citrix.com/projects/netscaler-nitro-api/en/12.0/configuration/policy/policypatset/policypatset/
+    components:
+      -
+        name: policypatset_pattern_binding-comp
+        type: ns::policypatset_pattern_binding
+        repeat: $parameters.pattern
+        repeat-item: ps
+        properties:
+          String: $ps
+          name: $parameters.ps_name
+          charset?: ASCII
+        #Ref: https://developer-docs.citrix.com/projects/netscaler-nitro-api/en/12.0/configuration/policy/policypatset_pattern_binding/policypatset_pattern_binding/
+outputs:
+- 
+  name: policypatset-Pattern-comp
+  value: $components.policypatset-Pattern-comp
+  description: The component that builds the configuration.
