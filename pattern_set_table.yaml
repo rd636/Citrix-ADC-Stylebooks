@@ -2,7 +2,7 @@
 name: pattern_set_table
 version: "1.0"
 namespace: com.One2Any.stylebooks
-display-name: "Pattern Set"
+display-name: "Pattern Set Table"
 description: "Maintain table of string patterns for AppExpert operations"
 schema-version: "1.0"
 author: "Rick Davis"
