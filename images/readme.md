@@ -1,5 +1,8 @@
 # Reference images of the stylebooks.
 
+## waf_sig_file
+![waf_sig_file.yaml](https://raw.githubusercontent.com/rd636/Citrix-ADC-Stylebooks/master/images/waf_sig_file.png)
+
 ## pattern_set_list
 ![pattern_set_list.yaml](https://raw.githubusercontent.com/rd636/Citrix-ADC-Stylebooks/master/images/pattern_set_list.png)
 
