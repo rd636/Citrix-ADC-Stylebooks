@@ -1,0 +1,56 @@
+name: waf-signature-update
+namespace: com.One2Any.stylebooks
+version: "1.0"
+display-name: Web Application Firewall Signature file upload
+description: Deploy a modified AppFW signature file to a fleet of devices 
+schema-version: "1.0"
+author: "R. Davis"
+# Notes:
+# 15 APR 2021 - Initial Build
+import-stylebooks:
+  -
+    namespace: netscaler.nitro.config
+    version: "11.0"
+    prefix: ns
+substitutions:
+  sig-filename: if-then-else($parameters.signaturelocalfile, $parameters.signaturelocalfile, $parameters.signaturefileupload.filename)
+parameters:
+  -
+    name: name
+    label: Signature Name
+    description: Name of the Signature
+    type: string
+    key: true
+    required: true
+    gui:
+      updatable: false
+  -
+    name: signaturefileupload
+    label: Signature file upload
+    type: file
+    description: Imports Signature file from local
+    required: true
+  -
+    name: signaturelocalfile
+    label: File name on /var/tmp
+    type: string
+    description: File name that is created on ADC /var/tmp. If no name is provided, the name of the uploaded file is used.
+components:
+  -
+    name: waf-signatureupload-comp
+    type: ns::systemfile
+    properties:
+      filename: $substitutions.sig-filename
+      filelocation: "/var/tmp"
+      filecontent: base64.encode($parameters.signaturefileupload.contents)
+      fileencoding: "BASE64"
+  -
+    name: waf-signature-comp
+    type: ns::appfwsignatures
+    meta-properties:
+      action: import
+    properties:
+      name: $parameters.name
+      src: str("local:") + $substitutions.sig-filename
+      merge: true
+    # object={"params":{"action":"import","warning":"YES"},"appfwsignatures":{"name":"demo_sig_set","src":"local:demo_sig_set.xml","merge":"true","log":"true","preservedefactions":"false"}}
