@@ -1,0 +1,308 @@
+---
+name: csActionApplication
+version: "1.0"
+namespace: com.One2Any.stylebooks
+display-name: "CS Action named vServers"
+description: "non-addressable app config for Action based Content Switching with a prefix. Creates the vserver configuration and L7 HTTP Monitor. Requires Pre-configured CS vserver"
+schema-version: "1.0"
+author: "R. Davis"
+
+# Notes:
+# add cs vserver csvs1_cs_vserver HTTP 192.168.200.239 80 
+# add cs action csvs1_cs_action -targetVserverExpr "\"csvs1_\"+HTTP.REQ.HOSTNAME"
+# add cs policy csvs1_cs_policy -rule HTTP.REQ.IS_VALID -action csvs1_cs_action
+# bind cs vserver csvs1_cs_vserver -policyName csvs1_cs_policy -priority 8000
+#
+# ADM version: 13.0.x
+# ADC version: 13.0.x
+#
+# 1.0   09/20/21
+# - trofs for health montoring
+# - enable/disable server is not allowed.  
+# - Custom port for servers.
+# - VIP is always non-addressable.
+# - SSL/HTTP service type depends on vserver listening port 443/80.
+# - Server ip and or names can specified
+# - Server names without IP addresses are created as domain based servers
+# - Advanced ssl component are: ssl3 DISABLED, tls11 DISABLED
+# - Client-ip http header insertion
+# - Intelligently changes monitor type from http and http-ecv when a receive string is specified
+# -	HTTP type vserver, which relies on the Content Switching Policy
+# -	80 to 443 redirect should be done on Content Switch
+# -	Defaults to Cookie Insert persistency
+# -	Defaults to Roundrobin load balancing algorithm
+# -	Service Group Servers can be port 80 or encrypted 443
+# -	HTTP health monitor with options for custom headers and send strings
+# -	Health monitor changes to secure/non-secure depending on server port selection  
+# - WebInsight is enabled by default.
+
+import-stylebooks:
+  -
+    namespace: netscaler.nitro.config
+    version: "11.1"
+    prefix: ns
+substitutions:
+  prefix: "csvs1_"  
+  encrypt:
+    true: "YES"
+    false: "NO"
+  servicetype:
+    true: "SSL"
+    false: "HTTP"
+parameters:
+  -
+    key: true  
+    name: name
+    type: string
+    label: Application FQDN
+    description: |
+      Name of the application configuration.
+      This is a mandatory argument.  Maximum Length: 127 
+    pattern: "^[A-z_][ A-z0-9_#.:@=-]+"
+    max-length: 120
+    required: true
+  -
+    name: lb-alg
+    type: string
+    label: LoadBalancing Algorithm
+    description: Choose the loadbalancing algorithm (method) used for loadbalancing client requests between the application servers.
+    allowed-values:
+     - ROUNDROBIN
+     - LEASTCONNECTION
+    default: ROUNDROBIN
+  -
+    name: persistence
+    label: "Load Balanced App Persistence Type"
+    description: "Persistence type used for members of this pool"
+    type: string
+    allowed-values: 
+      - NONE
+      - SOURCEIP
+      - COOKIEINSERT
+      - SRCIPDESTIP
+      - DESTIP
+    default: COOKIEINSERT
+  -
+    name: svc-port
+    type: tcp-port
+    label: Application Server Port
+    description: The TCP port open on the Application Servers to receive requests.  Value cannot be changed later.
+    updatable: false
+    default: 80
+  -
+    name: secure
+    type: boolean
+    label: Server Encrypts
+    description: Does the application server port use TLS encryption?  Value cannot be changed later. 
+    updatable: false
+    default: false
+  -
+    name: svc-servers
+    label: Application Servers
+    type: object[]
+    parameters:
+      -
+        name: ip
+        type: ipaddress
+        label: Application Server IP Address*
+        description: Never omit the IP address unless the server use dynamic host protocol assigned addresses and the names are resolvable.
+        required: false
+        parameters:
+      -
+        name: name
+        type: string
+        label: Application Server DNS Name
+        description: |
+          The fully qualified name of the application server.
+        required: false
+  -
+    name: http-monitor
+    label: Web Server Monitor Setting
+    type: object
+    required: true
+    gui: 
+      collapse_pane: true 
+    parameters:
+      -
+        name: httprequest
+        label: "HTTP Request"
+        description: "HTTP Request sent to the web server"
+        type: string
+        default: "GET /"
+        required: false
+        max-length: 151
+      -
+        name: customheaders
+        label: "Custom HTTP Headers"
+        description: | 
+          Custom HTTP Headers to send in monitor probe requests.
+          Use \r\n at the end of the header and as a seperator
+          for multiple headers.
+          Requires ADM 12.1.50.0 or newer.
+        type: string
+        max-length: 163
+      -
+        name: recv
+        label: "Expected Response"
+        description: |
+          A string in the HTTP Response Body expected back from the web server.  
+          Will check for a server response code 200 when Response and TROFS 
+          Response are left blank.
+          When Response is blank and TROFS is used, any http response code is valid. 
+        type: string
+        max-length: 127
+      -
+        name: trofs_string
+        label: "TROFS Response String"
+        description: |
+          Use only when an Expected Response is also used.
+          A Transition out of service (TROFS) string in the 
+          HTTP Response Body triggers a graceful shutdown of the server.
+          CTX219926
+          MaxLength = 127
+        type: string
+        max-length: 127
+  -
+    name: analytics
+    label: Web Application Insight Logging
+    type: boolean
+    default: "YES"
+components:
+  -
+    name: lbvserver-comp
+    type: ns::lbvserver
+    properties:
+      name: $substitutions.prefix + $parameters.name
+      servicetype: HTTP
+      ipv46: ip(0.0.0.0)
+      port: int(0)
+      lbmethod: $parameters.lb-alg
+      persistencetype: $parameters.persistence
+    components:
+      -
+        name: svcg-comp
+        type: ns::servicegroup
+        properties:
+          servicegroupname: $substitutions.prefix + $parameters.name + "-svcgrp"
+          servicetype: $substitutions.servicetype[$parameters.secure]
+          cip: "ENABLED"
+          cipheader: "client-ip"
+        components:        
+          -
+            name: lbvserver-svg-binding-comp
+            type: ns::lbvserver_servicegroup_binding
+            properties:
+              name: $parent.parent.properties.name
+              servicegroupname: $parent.properties.servicegroupname
+          -
+            name: members-svcg-server-domain-comp
+            type: ns::server
+            repeat: $parameters.svc-servers
+            repeat-item: servers
+            repeat-condition: $servers.name and not $servers.ip  
+            properties:
+              name: $servers.name
+              domain: $servers.name
+            components:
+              -
+                name: members-svcg-bind-dnsserver-comp
+                type: ns::servicegroup_servicegroupmember_binding
+                properties:
+                  servername: $parent.properties.name
+                  port: $parameters.svc-port
+                  servicegroupname: $parent.parent.properties.servicegroupname
+          -
+            name: members-svcg-server-comp
+            type: ns::server
+            repeat: $parameters.svc-servers
+            repeat-item: servers
+            repeat-condition: $servers.name and $servers.ip
+            properties:
+              name: $servers.name
+              ipaddress: $servers.ip
+            components:
+              -
+                name: members-svcg-bind-namedserver-comp
+                type: ns::servicegroup_servicegroupmember_binding
+                properties:
+                  servername: $parent.properties.name
+                  port: $parameters.svc-port
+                  servicegroupname: $parent.parent.properties.servicegroupname
+          -
+            name: members-svcg-serverip-comp
+            type: ns::server
+            repeat: $parameters.svc-servers
+            repeat-item: servers
+            repeat-condition: not $servers.name and $servers.ip
+            properties:
+              name: str($servers.ip)
+              ipaddress: $servers.ip
+            components:
+              -
+                name: members-svcg-bind-ipserver-comp
+                type: ns::servicegroup_servicegroupmember_binding
+                properties:
+                  servername: $parent.properties.name
+                  port: $parameters.svc-port
+                  servicegroupname: $parent.parent.properties.servicegroupname
+                  #Ref: https://developer-docs.citrix.com/projects/netscaler-nitro-api/en/12.0/configuration/basic/servicegroup_servicegroupmember_binding/
+  -
+    name: monitors-comp
+    type: object
+    components:
+      -
+        name: monitor-ecv-comp
+        type: ns::lbmonitor
+        condition: $parameters.http-monitor.recv or $parameters.http-monitor.trofs_string
+        properties:
+          monitorname: $substitutions.prefix + $parameters.name + "-ecv-mon"
+          type: str(HTTP-ECV)
+          secure: $substitutions.encrypt[$parameters.secure] 
+          customheaders?: $parameters.http-monitor.customheaders   
+          send?: $parameters.http-monitor.httprequest
+          recv?: $parameters.http-monitor.recv
+          trofsstring?: $parameters.http-monitor.trofs_string
+        components:
+          -
+           name: monitor-ecv-bind-comp
+           type: ns::servicegroup_lbmonitor_binding
+           properties:
+             servicegroupname: $substitutions.prefix + $parameters.name + "-svcgrp"
+             monitor_name: $substitutions.prefix + $parameters.name + "-ecv-mon"
+      -
+        name: monitor-http-comp
+        type: ns::lbmonitor
+        condition: not $parameters.http-monitor.recv and not $parameters.http-monitor.trofs_string
+        properties:
+          monitorname: $substitutions.prefix + $parameters.name + "-http-mon"
+          type: str(HTTP)
+          secure: $substitutions.encrypt[$parameters.secure]
+          httprequest?: $parameters.http-monitor.httprequest
+          customheaders?: $parameters.http-monitor.customheaders 
+        components:
+          -
+           name: monitor-http-bind-comp
+           type: ns::servicegroup_lbmonitor_binding
+           properties:
+             servicegroupname: $substitutions.prefix + $parameters.name + "-svcgrp"
+             monitor_name: $substitutions.prefix + $parameters.name + "-http-mon"
+operations:
+  analytics:
+    -
+      name: lbvserver-ops
+      condition: $parameters.analytics == true
+      properties:
+        target: $components.lbvserver-comp
+        filter: "true"
+        insights:
+          -
+            type: webinsight    
+outputs:
+  -
+    name: lbvserver-comp
+    value: $components.lbvserver-comp
+    description: The component that builds the Nitro lbvserver configuration
+  -
+    name: monitors-comp
+    value: $components.monitors-comp
+    description: The component that builds and updates the health monitors
